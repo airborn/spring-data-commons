@@ -35,9 +35,10 @@ import org.springframework.data.repository.core.RepositoryMetadata;
 
 /**
  * Unit tests dor {@link DefaultCrudMethods}.
- * 
+ *
  * @author Oliver Gierke
  * @author Thomas Darimont
+ * @author Mark Paluch
  */
 public class DefaultCrudMethodsUnitTests {
 
@@ -143,7 +144,7 @@ public class DefaultCrudMethodsUnitTests {
 
 		RepositoryMetadata metadata = new DefaultRepositoryMetadata(repositoryInterface);
 		RepositoryInformation information = new DefaultRepositoryInformation(metadata, PagingAndSortingRepository.class,
-				Optional.empty());
+				RepositoryComposition.empty());
 
 		return new DefaultCrudMethods(information);
 	}

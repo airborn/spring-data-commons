@@ -23,13 +23,12 @@ import reactor.core.publisher.Flux;
 import rx.Observable;
 
 import java.lang.reflect.Method;
-import java.util.Optional;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.reactivestreams.Publisher;
-import org.springframework.data.repository.core.RepositoryInformation;
+import org.springframework.data.repository.core.RepositoryMetadata;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.data.repository.reactive.ReactiveSortingRepository;
 import org.springframework.data.repository.reactive.RxJava1CrudRepository;
@@ -45,7 +44,7 @@ import org.springframework.data.repository.reactive.RxJava2CrudRepository;
 @RunWith(MockitoJUnitRunner.class)
 public class ReactiveRepositoryInformationUnitTests {
 
-	static final Class<ReactiveJavaInterfaceWithGenerics> REPOSITORY = ReactiveJavaInterfaceWithGenerics.class;
+	static final Class<ReactiveJavaInterfaceWithGenerics> BASE_CLASS = ReactiveJavaInterfaceWithGenerics.class;
 
 	@Test // DATACMNS-836
 	public void discoversRxJava1MethodWithoutComparingReturnType() throws Exception {
@@ -128,9 +127,12 @@ public class ReactiveRepositoryInformationUnitTests {
 	private Method extractTargetMethodFromRepository(Class<?> repositoryType, String methodName, Class<?>... args)
 			throws NoSuchMethodException {
 
-		RepositoryInformation information = new ReactiveRepositoryInformation(new DefaultRepositoryMetadata(repositoryType),
-				REPOSITORY, Optional.empty());
-		return information.getTargetClassMethod(repositoryType.getMethod(methodName, args));
+		RepositoryMetadata metadata = new DefaultRepositoryMetadata(repositoryType);
+
+		RepositoryComposition composition = RepositoryComposition.of(RepositoryFragment.structural(BASE_CLASS))
+				.withMethodLookup(MethodLookups.forReactiveTypes(metadata));
+
+		return composition.findMethod(repositoryType.getMethod(methodName, args)).get();
 	}
 
 	interface RxJava1InterfaceWithGenerics extends RxJava1CrudRepository<User, String> {}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2016 the original author or authors.
+ * Copyright 2008-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,10 +44,11 @@ import org.springframework.util.Assert;
 /**
  * Adapter for Springs {@link FactoryBean} interface to allow easy setup of repository factories via Spring
  * configuration.
- * 
+ *
  * @param <T> the type of the repository
  * @author Oliver Gierke
  * @author Thomas Darimont
+ * @author Mark Paluch
  */
 public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, S, ID>
 		implements InitializingBean, RepositoryFactoryInformation<S, ID>, FactoryBean<T>, BeanClassLoaderAware,
@@ -59,6 +60,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 	private Key queryLookupStrategyKey;
 	private Optional<Class<?>> repositoryBaseClass = Optional.empty();
 	private Optional<Object> customImplementation = Optional.empty();
+	private Optional<RepositoryComposition> repositoryComposition = Optional.empty();
 	private NamedQueries namedQueries;
 	private Optional<MappingContext<?, ?>> mappingContext;
 	private ClassLoader classLoader;
@@ -73,7 +75,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Creates a new {@link RepositoryFactoryBeanSupport} for the given repository interface.
-	 * 
+	 *
 	 * @param repositoryInterface must not be {@literal null}.
 	 */
 	protected RepositoryFactoryBeanSupport(Class<? extends T> repositoryInterface) {
@@ -84,7 +86,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Configures the repository base class to be used.
-	 * 
+	 *
 	 * @param repositoryBaseClass the repositoryBaseClass to set, can be {@literal null}.
 	 * @since 1.11
 	 */
@@ -94,7 +96,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Set the {@link QueryLookupStrategy.Key} to be used.
-	 * 
+	 *
 	 * @param queryLookupStrategyKey
 	 */
 	public void setQueryLookupStrategyKey(Key queryLookupStrategyKey) {
@@ -103,7 +105,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Setter to inject a custom repository implementation.
-	 * 
+	 *
 	 * @param customImplementation
 	 */
 	public void setCustomImplementation(Object customImplementation) {
@@ -111,8 +113,17 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 	}
 
 	/**
+	 * Setter to inject a repository composition.
+	 *
+	 * @param repositoryComposition
+	 */
+	public void setRepositoryComposition(RepositoryComposition repositoryComposition) {
+		this.repositoryComposition = Optional.ofNullable(repositoryComposition);
+	}
+
+	/**
 	 * Setter to inject a {@link NamedQueries} instance.
-	 * 
+	 *
 	 * @param namedQueries the namedQueries to set
 	 */
 	public void setNamedQueries(NamedQueries namedQueries) {
@@ -122,7 +133,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 	/**
 	 * Configures the {@link MappingContext} to be used to lookup {@link PersistentEntity} instances for
 	 * {@link #getPersistentEntity()}.
-	 * 
+	 *
 	 * @param mappingContext
 	 */
 	protected void setMappingContext(MappingContext<?, ?> mappingContext) {
@@ -131,7 +142,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Sets the {@link EvaluationContextProvider} to be used to evaluate SpEL expressions in manually defined queries.
-	 * 
+	 *
 	 * @param evaluationContextProvider can be {@literal null}, defaults to
 	 *          {@link DefaultEvaluationContextProvider#INSTANCE}.
 	 */
@@ -142,14 +153,14 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Configures whether to initialize the repository proxy lazily. This defaults to {@literal false}.
-	 * 
+	 *
 	 * @param lazy whether to initialize the repository proxy lazily. This defaults to {@literal false}.
 	 */
 	public void setLazyInit(boolean lazy) {
 		this.lazyInit = lazy;
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.beans.factory.BeanClassLoaderAware#setBeanClassLoader(java.lang.ClassLoader)
 	 */
@@ -158,7 +169,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 		this.classLoader = classLoader;
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.beans.factory.BeanFactoryAware#setBeanFactory(org.springframework.beans.factory.BeanFactory)
 	 */
@@ -167,7 +178,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 		this.beanFactory = beanFactory;
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.context.ApplicationEventPublisherAware#setApplicationEventPublisher(org.springframework.context.ApplicationEventPublisher)
 	 */
@@ -185,15 +196,16 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 		return (EntityInformation<S, ID>) factory.getEntityInformation(repositoryMetadata.getDomainType());
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.core.support.RepositoryFactoryInformation#getRepositoryInformation()
 	 */
 	public RepositoryInformation getRepositoryInformation() {
-		return this.factory.getRepositoryInformation(repositoryMetadata, customImplementation.map(Object::getClass));
+		return this.factory.getRepositoryInformation(repositoryMetadata,
+				customImplementation.map(RepositoryComposition::just).orElse(RepositoryComposition.empty()));
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.core.support.RepositoryFactoryInformation#getPersistentEntity()
 	 */
@@ -251,7 +263,8 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 			this.factory.addRepositoryProxyPostProcessor(new EventPublishingRepositoryProxyPostProcessor(publisher));
 		}
 
-		repositoryBaseClass.ifPresent(it -> this.factory.setRepositoryBaseClass(it));
+		repositoryBaseClass.ifPresent(this.factory::setRepositoryBaseClass);
+		repositoryComposition.ifPresent(this.factory::setRepositoryComposition);
 
 		this.repositoryMetadata = this.factory.getRepositoryMetadata(repositoryInterface);
 		this.repository = Lazy.of(() -> this.factory.getRepository(repositoryInterface, customImplementation));
@@ -263,7 +276,7 @@ public abstract class RepositoryFactoryBeanSupport<T extends Repository<S, ID>, 
 
 	/**
 	 * Create the actual {@link RepositoryFactorySupport} instance.
-	 * 
+	 *
 	 * @return
 	 */
 	protected abstract RepositoryFactorySupport createRepositoryFactory();
